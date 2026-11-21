@@ -1,0 +1,61 @@
+name: ArcfoxWidget
+options:
+  bundleIdPrefix: com.arcfoxplus
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    MARKETING_VERSION: "3.0"
+    CURRENT_PROJECT_VERSION: "103"
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Manual
+targets:
+  ArcfoxWidgetApp:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+        excludes:
+          - "Info.plist"
+          - "ArcfoxApp.entitlements"
+      - path: Shared
+      - path: Resources
+    dependencies:
+      - target: ArcfoxWidgetExt
+        embed: true
+        sign: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.arcfoxplus.widget
+        INFOPLIST_FILE: App/Info.plist
+        GENERATE_INFOPLIST_FILE: false
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_ENTITLEMENTS: App/ArcfoxApp.entitlements
+  ArcfoxWidgetExt:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: Widget
+        excludes:
+          - "Info.plist"
+          - "ArcfoxWidget.entitlements"
+      - path: Shared
+      - path: Resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.arcfoxplus.widget.ext
+        INFOPLIST_FILE: Widget/Info.plist
+        GENERATE_INFOPLIST_FILE: false
+        CODE_SIGN_ENTITLEMENTS: Widget/ArcfoxWidget.entitlements
+        SKIP_INSTALL: true
+schemes:
+  ArcfoxWidgetApp:
+    build:
+      targets:
+        ArcfoxWidgetApp: all
+        ArcfoxWidgetExt: all
+    archive:
+      config: Release

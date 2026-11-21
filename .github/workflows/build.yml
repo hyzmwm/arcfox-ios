@@ -1,0 +1,56 @@
+name: Build iOS ipa
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install xcodegen & ldid
+        run: |
+          brew install xcodegen ldid
+          xcodegen generate
+
+      - name: Show project
+        run: xcodebuild -list -project ArcfoxWidget.xcodeproj
+
+      - name: Build (unsigned)
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project ArcfoxWidget.xcodeproj \
+            -scheme ArcfoxWidgetApp \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath build/dd \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            | tail -40
+
+      - name: Package ipa (ldid pseudo-sign with app-group entitlements)
+        run: |
+          APP="build/dd/Build/Products/Release-iphoneos/ArcfoxWidgetApp.app"
+          EXT="$APP/PlugIns/ArcfoxWidgetExt.appex"
+          # 伪签（ldid）：TrollStore 可直接装；之后也能用 Sideloadly / 证书工具重签
+          ldid -SApp/ArcfoxApp.entitlements "$APP/ArcfoxWidgetApp"
+          ldid -SWidget/ArcfoxWidget.entitlements "$EXT/ArcfoxWidgetExt"
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -r -q ArcfoxWidget-v3.0-ios-unsigned.ipa Payload
+          unzip -l ArcfoxWidget-v3.0-ios-unsigned.ipa | tail -20
+          ls -lh ArcfoxWidget-v3.0-ios-unsigned.ipa
+
+      - name: Upload ipa artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ArcfoxWidget-v3.0-ios-ipa
+          path: ArcfoxWidget-v3.0-ios-unsigned.ipa
+          retention-days: 30
