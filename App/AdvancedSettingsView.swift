@@ -13,6 +13,19 @@ struct AdvancedSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
+            // App Group 诊断 + 手动重载小组件
+            sub("小组件数据链路")
+            HStack {
+                Text("共享存储(App Group)：")
+                Text(Store.probeGroup() ? "正常" : "异常！小组件读不到数据")
+                    .fontWeight(.semibold)
+                    .foregroundColor(Store.probeGroup() ? .green : .red)
+                Spacer()
+                Button("重载小组件") { WidgetBridge.reloadWidgets() }
+                    .buttonStyle(.bordered)
+            }
+            .font(.callout)
+
             // 远程控制
             sub("远程控制")
             HStack(spacing: 8) {

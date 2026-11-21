@@ -97,6 +97,11 @@ struct CompactWidgetView: View {
             statLine(icon: "thermometer.medium", text: "车内 \(c?.string("temp") ?? "--")  车外 \(c?.string("out") ?? "--")")
             statLine(icon: "lock.\(locked == 1 ? "fill" : "open")", text: lockText, color: locked == 1 ? .primary : .orange)
             statLine(icon: "airbag", text: "胎压 \(c?.string("tyre") ?? "--/--/--/--")")
+            if entry.cache == nil {
+                Text("没有数据 · 请打开极狐车况 App 下拉刷新")
+                    .font(.system(size: 10 * fontScale, weight: .medium))
+                    .foregroundColor(.orange)
+            }
             if let loc = c?.string("loc"), !loc.isEmpty {
                 Text(loc).font(.system(size: 9.5 * fontScale)).foregroundColor(.secondary).lineLimit(1)
             }
@@ -207,6 +212,11 @@ struct ControlWidgetView: View {
                 bigStat(c?.string("range") ?? "--km", "续航", .primary, 22)
                 bigStat(c?.string("odo") ?? "--", "里程", .primary, 22)
                 bigStat(c?.string("temp") ?? "--", "车内温", .primary, 22)
+            }
+            if entry.cache == nil {
+                Text("没有数据 · 请打开极狐车况 App 下拉刷新")
+                    .font(.system(size: 10 * fontScale, weight: .medium))
+                    .foregroundColor(.orange)
             }
             if let loc = c?.string("loc"), !loc.isEmpty {
                 Label(loc, systemImage: "mappin.and.ellipse")

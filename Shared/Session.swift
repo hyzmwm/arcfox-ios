@@ -22,6 +22,16 @@ enum Store {
         d.removeObject(forKey: k)
     }
 
+    /// 诊断：App Group 是否真的可读写（UserDefaults 失败会静默回退 .standard，
+    /// 主 App 正常但小组件读不到——用探针键真实验证）。
+    static func probeGroup() -> Bool {
+        guard let g = UserDefaults(suiteName: appGroupId) else { return false }
+        let t = "ok\(Int(Date().timeIntervalSince1970))"
+        g.set(t, forKey: "__probe")
+        return g.string(forKey: "__probe") == t
+    }
+
+
     static func getInt(_ k: String, _ def: Int) -> Int {
         let v = d.integer(forKey: k)
         return d.object(forKey: k) == nil ? def : v
