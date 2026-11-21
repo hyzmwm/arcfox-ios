@@ -7,6 +7,8 @@ struct CarEntry: TimelineEntry {
     let date: Date
     let cache: JSON?
     let session: Session
+    var fetchError: String = ""
+    var groupOk: Bool = true
 }
 
 struct CarProvider: TimelineProvider {
@@ -19,9 +21,28 @@ struct CarProvider: TimelineProvider {
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<CarEntry>) -> Void) {
-        let entry = CarEntry(date: .now, cache: TspControl.readCache(), session: Session.shared)
+        // ① 先读共享缓存；② 为空或过期则扩展进程自取（token 同样来自共享存储）
+        var cache = TspControl.readCache()
+        var fetchError = ""
+        let autoMin = max(Store.getInt(Store.kAutoMin, 15), 5)
+        let ts = Store.getLong(Store.kCacheTs, 0)
+        let stale = ts == 0 || Date().timeIntervalSince1970 * 1000 - Double(ts) > Double(autoMin) * 60_000
+        if cache == nil || stale {
+            let r = Fetcher.fetch()
+            if let c = r.cache {
+                TspControl.reconcile(c)
+                Store.set(Store.kCache, c.rawUnsorted)
+                Store.setLong(Store.kCacheTs, Int64(Date().timeIntervalSince1970 * 1000))
+                cache = c
+            } else {
+                fetchError = r.error ?? "取不到车况"
+            }
+        }
+        let groupOk = (UserDefaults(suiteName: Store.appGroupId)?.string(forKey: "__probe")) != nil
+        let entry = CarEntry(date: .now, cache: cache, session: Session.shared,
+                             fetchError: fetchError, groupOk: groupOk)
         // 15 分钟后过期触发下一次 timeline 重建（配合 BGAppRefresh 的节奏）
-        let next = Calendar.current.date(byAdding: .minute, value: 15, to: entry.date)!
+        let next = Calendar.current.date(byAdding: .minute, value: autoMin, to: entry.date)!
         completion(Timeline(entries: [entry], policy: .after(next)))
     }
 
@@ -145,12 +166,19 @@ struct CompactWidgetView: View {
             }
 
             HStack(spacing: 4 * fontScale) {
-                Image(systemName: locked == 1 ? "lock.fill" : "lock.open")
-                    .font(.system(size: 8.5 * fontScale))
-                    .foregroundColor(locked == 1 ? .secondary : .orange)
-                Text(lockText).font(.system(size: 8.5 * fontScale)).foregroundColor(.secondary)
-                Spacer(minLength: 0)
-                Text(timeText).font(.system(size: 8.5 * fontScale)).foregroundColor(.secondary).lineLimit(1)
+                if entry.cache == nil {
+                    Text(hintText)
+                        .font(.system(size: 8.5 * fontScale, weight: .medium))
+                        .foregroundColor(.orange)
+                        .lineLimit(1).minimumScaleFactor(0.8)
+                } else {
+                    Image(systemName: locked == 1 ? "lock.fill" : "lock.open")
+                        .font(.system(size: 8.5 * fontScale))
+                        .foregroundColor(locked == 1 ? .secondary : .orange)
+                    Text(lockText).font(.system(size: 8.5 * fontScale)).foregroundColor(.secondary)
+                    Spacer(minLength: 0)
+                    Text(timeText).font(.system(size: 8.5 * fontScale)).foregroundColor(.secondary).lineLimit(1)
+                }
             }
         }
         .padding(11)
@@ -181,6 +209,12 @@ struct CompactWidgetView: View {
     }
 
     private var sentry: Bool { c?.bool("sentry", false) ?? false }
+
+    private var hintText: String {
+        if !entry.groupOk { return "小组件无共享权限 · 请用 TrollStore 重装" }
+        if !entry.fetchError.isEmpty { return "自取失败：\(entry.fetchError)" }
+        return "请打开极狐车况 App 下拉刷新一次"
+    }
 
     private var socText: String { c?.string("soc") ?? "--%" }
     private var rangeText: String { c?.string("range") ?? "--km" }
@@ -263,8 +297,9 @@ struct ControlWidgetView: View {
             }
 
             if entry.cache == nil {
-                Text("没有数据 · 请打开极狐车况 App 下拉刷新")
+                Text(hintText)
                     .font(.system(size: 10 * fontScale, weight: .medium)).foregroundColor(.orange)
+                    .lineLimit(2)
             }
 
             // 状态胶囊
@@ -297,6 +332,12 @@ struct ControlWidgetView: View {
         }
         .padding(14)
         .containerBackground(for: .widget) { ContainerRelativeShape().fill(cardBackground(sysColor)) }
+    }
+
+    private var hintText: String {
+        if !entry.groupOk { return "小组件无共享权限(App Group) · 请用 TrollStore 重装" }
+        if !entry.fetchError.isEmpty { return "自取失败：\(entry.fetchError)" }
+        return "请打开极狐车况 App 下拉刷新一次"
     }
 
     private var locked: Int {
