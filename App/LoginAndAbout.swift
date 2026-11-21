@@ -47,7 +47,7 @@ struct LoginView: View {
                                 if r.bizOk {
                                     stage = 1
                                     msg = "登录成功，现在做车况授权（会收到第二条短信）"
-                                    run { Session.shared.sendAuthSmsAuto(&log) } done: nil
+                                    run { Session.shared.sendAuthSmsAuto(&log) }
                                 }
                             }
                         } else {
