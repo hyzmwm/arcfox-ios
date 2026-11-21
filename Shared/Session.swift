@@ -91,6 +91,48 @@ enum Store {
         return fileUsable == true && get("__probe") == t
     }
 
+    // ------------------------------------------------------------- 键名（与 Android 版一致）
+
+    static let kCache = "cache"
+    static let kCacheTs = "cache_ts"
+    static let kLastError = "last_error"
+    static let kAutoMin = "auto_refresh_min"
+    static let kWidgetTheme = "widget_theme"
+    static let kWidgetTitle = "widget_title"
+    static let kWidgetScale = "widget_scale"
+    static let kWidgetFontPct = "widget_font_pct"
+    static let kWidgetIconDp = "widget_icon_dp"
+    static let kWidgetAlpha = "widget_alpha"
+    static let kWidgetRadius = "widget_radius"
+    static let kLastNight = "widget_night_applied"
+    static let kGeoCache = "geo_cache"
+    static let kAmapUser = "amap_key_user"
+    static let kVehicleTs = "vehicle_ts"
+    static let kVehicleRaw = "vehicle_raw"
+    static let kCarColorName = "car_color_name"
+    static let kCtrlKey = "ctrl_key"
+    static let kCtrlLog = "ctrl_log"
+    static let kCtrlMsg = "ctrl_msg"
+    static let kRefreshLog = "refresh_log"
+    static let kTspSeq = "tsp_seq"
+    static let kAcTemp = "ac_temp"
+    static let kAcHold = "ac_hold"
+    static let kLockHold = "lock_hold"
+    static let kWinHold = "win_hold"
+    static let kFirstRunAck = "first_run_ack"
+
+    static func ctrlKey() -> String {
+        let s = get(kCtrlKey)
+        if s.count >= 8 { return s }
+        var out = ""
+        while out.count < 16 {
+            out += String(format: "%x", Int.random(in: 0..<16))
+        }
+        set(kCtrlKey, out)
+        return out
+    }
+}
+
 /// 登录态（对应 Android Session.java）
 final class Session {
     static let shared = Session()
