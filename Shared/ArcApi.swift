@@ -226,7 +226,7 @@ final class JSON {
     var obj: [String: Any]
 
     init(_ data: Data) { obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:] }
-    init(_ string: String) { self.init(Data(string.utf8)) }
+    convenience init(_ string: String) { self.init(Data(string.utf8)) }
     init(_ dict: [String: Any]) { obj = dict }
 
     var raw: String {
