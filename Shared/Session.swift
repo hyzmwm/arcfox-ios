@@ -195,7 +195,7 @@ final class Session {
             if !tspUid.isEmpty { Store.set(kTspUid, tspUid) }
             let sds = d.string("sdsTspId")
             if !sds.isEmpty { Store.set(kSdsTsp, sds) }
-            let t = firstNonEmpty(d.string("tspAccessToken"), d.string("accessToken"))
+            let t = Session.firstNonEmpty(d.string("tspAccessToken"), d.string("accessToken"))
             if !t.isEmpty { Store.set(kTspToken, t) }
             Store.setLong(kLoginTs, Int64(Date().timeIntervalSince1970 * 1000))
         }
@@ -223,11 +223,11 @@ final class Session {
             if !v.isEmpty { Store.set(kVin, v.uppercased()) }
 
             // seriesName 是「车系」不是「车型」：最具体的放前面，车系名放最后兜底
-            let model = firstNonEmpty(data.string("vehicleModelName"), data.string("modelName"),
+            let model = Session.firstNonEmpty(data.string("vehicleModelName"), data.string("modelName"),
                                       data.string("vehicleModel"), data.string("seriesName"))
             if !model.isEmpty { Store.set(kModel, model) }
 
-            let code = firstNonEmpty(data.string("vehicleModelCode"), data.string("vehicleSeriesCode"),
+            let code = Session.firstNonEmpty(data.string("vehicleModelCode"), data.string("vehicleSeriesCode"),
                                      data.string("modelCode"), data.string("seriesCode"),
                                      data.string("subVehicleModelCode"), data.string("vehicleType"))
             if !code.isEmpty { Store.set(kModelCode, code) }
@@ -235,7 +235,7 @@ final class Session {
             let sub = data.string("subVehicleModelCode")
             if !sub.isEmpty { Store.set(kSubModelCode, sub) }
 
-            let plate = firstNonEmpty(data.string("plateNo"), data.string("plateNumber"))
+            let plate = Session.firstNonEmpty(data.string("plateNo"), data.string("plateNumber"))
             if !plate.isEmpty { Store.set(kPlate, plate) }
 
             let color = Session.pickColor(data)
@@ -329,7 +329,7 @@ final class Session {
 
     // ------------------------------------------------------------- helpers
 
-    func firstNonEmpty(_ vals: String...) -> String {
+    static func firstNonEmpty(_ vals: String...) -> String {
         for v in vals where !v.isEmpty && v != "null" { return v }
         return ""
     }
@@ -378,16 +378,16 @@ final class Session {
         for k in ["color", "vehicleColor", "exteriorColor", "bodyColor", "paint", "paintColor"] {
             if let sub = o.dict(k) {
                 let v = joinColor(
-                    firstNonEmpty(sub.string("colorName"), sub.string("name"), sub.string("value")),
-                    firstNonEmpty(sub.string("colorCode"), sub.string("code"), sub.string("colorNo")))
+                    Session.firstNonEmpty(sub.string("colorName"), sub.string("name"), sub.string("value")),
+                    Session.firstNonEmpty(sub.string("colorCode"), sub.string("code"), sub.string("colorNo")))
                 if !v.isEmpty { return v }
             }
         }
         return joinColor(
-            firstNonEmpty(o.string("colorName"), o.string("vehicleColorName"), o.string("exteriorColorName"),
+            Session.firstNonEmpty(o.string("colorName"), o.string("vehicleColorName"), o.string("exteriorColorName"),
                           o.string("bodyColorName"), o.string("paintColorName"), o.string("vehicleColor"),
                           o.string("bodyColor"), o.string("exteriorColor"), o.string("paintColor"), o.string("color")),
-            firstNonEmpty(o.string("colorCode"), o.string("vehicleColorCode"), o.string("colorNo"),
+            Session.firstNonEmpty(o.string("colorCode"), o.string("vehicleColorCode"), o.string("colorNo"),
                           o.string("paintCode"), o.string("exteriorColorCode")))
     }
 

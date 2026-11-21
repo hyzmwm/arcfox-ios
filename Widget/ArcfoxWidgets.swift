@@ -60,7 +60,7 @@ struct CompactWidgetView: View {
                 infoColumn.padding(10)
             }
         }
-        .widgetBackground(ContainerRelativeShape().fill(cardColor))
+        .containerBackground(ContainerRelativeShape().fill(cardColor), for: .widget)
     }
 
     private var cardColor: Color {
@@ -227,7 +227,7 @@ struct ControlWidgetView: View {
             }
         }
         .padding(14)
-        .widgetBackground(ContainerRelativeShape().fill(cardColor))
+        .containerBackground(ContainerRelativeShape().fill(cardColor), for: .widget)
     }
 
     private var socColor: Color {
