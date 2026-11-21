@@ -14,9 +14,9 @@ struct RefreshIntent: AppIntent {
         WidgetCenter.shared.reloadAllTimelines()
         if let c = r.cache {
             Store.set(Store.kCache, c.rawUnsorted)
-            return .result(dialog: "已刷新 · " + (c.string("soc")) + " " + (c.string("range")))
+            return .result(dialog: IntentDialog(stringLiteral: "已刷新 · " + (c.string("soc")) + " " + (c.string("range"))))
         }
-        return .result(dialog: r.error ?? "刷新失败")
+        return .result(dialog: IntentDialog(stringLiteral: r.error ?? "刷新失败"))
     }
 }
 
@@ -29,7 +29,7 @@ struct LockToggleIntent: AppIntent {
         let locked = held >= 0 ? held == 1 : (TspControl.readCache()?.bool("locked", false) ?? false)
         let r = TspControl.setDoor(!locked)
         WidgetCenter.shared.reloadAllTimelines()
-        return .result(dialog: r.msg)
+        return .result(dialog: IntentDialog(stringLiteral: r.msg))
     }
 }
 
@@ -40,7 +40,7 @@ struct AcToggleIntent: AppIntent {
     func perform() async throws -> some IntentResult & ProvidesDialog {
         let r = TspControl.toggle()
         WidgetCenter.shared.reloadAllTimelines()
-        return .result(dialog: r.msg)
+        return .result(dialog: IntentDialog(stringLiteral: r.msg))
     }
 }
 
@@ -51,7 +51,7 @@ struct WindowToggleIntent: AppIntent {
     func perform() async throws -> some IntentResult & ProvidesDialog {
         let r = TspControl.toggleWindow()
         WidgetCenter.shared.reloadAllTimelines()
-        return .result(dialog: r.msg)
+        return .result(dialog: IntentDialog(stringLiteral: r.msg))
     }
 }
 
@@ -62,7 +62,7 @@ struct FindCarIntent: AppIntent {
     func perform() async throws -> some IntentResult & ProvidesDialog {
         let r = TspControl.find()
         WidgetCenter.shared.reloadAllTimelines()
-        return .result(dialog: r.msg)
+        return .result(dialog: IntentDialog(stringLiteral: r.msg))
     }
 }
 

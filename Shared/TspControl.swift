@@ -265,7 +265,7 @@ enum TspControl {
     }
 
     static func setWindow(open: Bool, polls: Int = pollTimes) -> Res {
-        var res = exec("车窗", cmdWindow, open ? "1" : cmdSet, p1: "1", polls: polls)
+        var res = toRes(exec("车窗", cmdWindow, open ? "1" : cmdSet, p1: "1", polls: polls))
         res.winSet = open
         if res.done {
             res.msg = open ? "车窗已打开" : "车窗已关闭"
@@ -274,7 +274,7 @@ enum TspControl {
     }
 
     static func find(_ polls: Int = pollTimes) -> Res {
-        var res = exec("寻车", cmdFind, "1", p1: findMode, polls: polls)
+        var res = toRes(exec("寻车", cmdFind, "1", p1: findMode, polls: polls))
         if res.done {
             res.msg = "寻车已触发（鸣笛 + 闪灯）"
             saveLog(res.msg, res.detail + "\n← 寻车是瞬时动作，回执不带 RE")
@@ -283,6 +283,19 @@ enum TspControl {
     }
 
     // ------------------------------------------------------------- 内部执行
+
+    /// 把内部执行结果转成对外统一的 Res（只搬共有字段）。
+    private static func toRes(_ e: ExecRes) -> Res {
+        var r = Res()
+        r.accepted = e.accepted
+        r.done = e.done
+        r.needApp = e.needApp
+        r.re = e.re
+        r.cr = e.cr
+        r.msg = e.msg
+        r.detail = e.detail
+        return r
+    }
 
     private struct ExecRes {
         var accepted = false
@@ -294,8 +307,7 @@ enum TspControl {
         var detail = ""
     }
 
-    private static func exec(_ name: String, _ cmd: String, _ c: String, p1: String, polls: Int) -> ExecRes {
-        let s = Session.shared
+    private static func exec(_ name: String, _ cmd: String, _ c: String, p1: String, polls: Int) -> ExecRes {        let s = Session.shared
         var res = ExecRes()
         let vin = s.vin
         if vin.isEmpty {
