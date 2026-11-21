@@ -205,7 +205,7 @@ enum ArcApi {
             r.http = hr?.statusCode ?? 0
             r.body = String(data: data ?? Data(), encoding: .utf8) ?? ""
             if let b = data, r.body.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("{") {
-                r.json = JSON(data)
+                r.json = JSON(b)
             }
         }.resume()
         _ = sem.wait(timeout: .now() + .seconds(Int(connectTimeout + readTimeout + 2)))
