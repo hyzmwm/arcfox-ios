@@ -36,77 +36,125 @@ struct CarProvider: TimelineProvider {
     }
 }
 
-// ---------------------------------------------------------------- 紧凑 4×2（medium）
+// ---------------------------------------------------------------- 通用
+
+/// 卡片底色（跟随主题/透明度设置）
+private func cardBackground(_ sysColor: ColorScheme) -> Color {
+    let alpha = Double(Store.getInt(Store.kWidgetAlpha, 100)) / 100
+    let theme = Store.get(Store.kWidgetTheme, "auto")
+    let dark = theme == "dark" || (theme == "auto" && sysColor == .dark)
+    return dark ? Color(red: 0.10, green: 0.12, blue: 0.15).opacity(alpha)
+                : Color(red: 0.93, green: 0.95, blue: 0.97).opacity(alpha)
+}
+
+/// 中号里的图标式控车按钮（iOS 17 交互式，点击直接在扩展进程执行）。
+struct IconCtrlButton: View {
+    enum Kind { case lock, ac, window, find }
+    let kind: Kind
+    var scale: CGFloat = 1
+
+    var body: some View {
+        switch kind {
+        case .lock:
+            Button(intent: LockToggleIntent()) { label(locked == 1 ? "lock.fill" : "lock.open", locked == 1 ? "已锁" : "未锁") }
+        case .ac:
+            Button(intent: AcToggleIntent()) { label("fanblades.fill", "空调") }
+        case .window:
+            Button(intent: WindowToggleIntent()) { label("rectangle.split.3x1", "车窗") }
+        case .find:
+            Button(intent: FindCarIntent()) { label("iphone.radiowaves.left.and.right", "寻车") }
+        }
+    }
+
+    private var locked: Int {
+        let held = TspControl.heldLock()
+        if held >= 0 { return held }
+        guard let c = TspControl.readCache() else { return -1 }
+        if c.bool("lockKnown", false) || c.has("locked") { return c.bool("locked", false) ? 1 : 0 }
+        return -1
+    }
+
+    private func label(_ icon: String, _ text: String) -> some View {
+        HStack(spacing: 3 * scale) {
+            Image(systemName: icon).font(.system(size: 11 * scale, weight: .semibold))
+            Text(text).font(.system(size: 10 * scale, weight: .medium))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 5 * scale)
+        .background(RoundedRectangle(cornerRadius: 8).fill(.secondary.opacity(0.20)))
+    }
+}
+
+// ---------------------------------------------------------------- 中号：紧凑 + 控车
 
 struct CompactWidgetView: View {
     var entry: CarEntry
     @Environment(\.colorScheme) private var sysColor
 
     private var c: JSON? { entry.cache }
-
-    private var radius: CGFloat { CGFloat(Store.getInt(Store.kWidgetRadius, 22)) }
     private var fontScale: CGFloat { CGFloat(Store.getInt(Store.kWidgetFontPct, 100)) / 100 }
 
     var body: some View {
-        ZStack {
-            ContainerRelativeShape()
-                .fill(cardColor)
-            if let img = carImage {
-                HStack(spacing: 8) {
-                    infoColumn
-                    img.resizable().scaledToFit().frame(maxHeight: 74).frame(maxWidth: 110)
-                }
-                .padding(10)
-            } else {
-                infoColumn.padding(10)
-            }
-        }
-        .containerBackground(for: .widget) { ContainerRelativeShape().fill(cardColor) }
-    }
-
-    private var cardColor: Color {
-        let alpha = Double(Store.getInt(Store.kWidgetAlpha, 100)) / 100
-        let theme = Store.get(Store.kWidgetTheme, "auto")
-        let dark = theme == "dark" || (theme == "auto" && sysColor == .dark)
-        return dark ? Color(red: 0.10, green: 0.12, blue: 0.15).opacity(alpha)
-                    : Color(red: 0.93, green: 0.95, blue: 0.97).opacity(alpha)
-    }
-
-    private var carImage: Image? {
-        let group = CarModel.resolve(entry.session.modelCode, entry.session.vin, entry.session.model)
-        if let ui = CarImages.load(CarModel.defaultCarImage(group)) {
-            return Image(uiImage: ui)
-        }
-        return nil
-    }
-
-    private var infoColumn: some View {
-        VStack(alignment: .leading, spacing: 4 * fontScale) {
-            HStack {
-                Text(title).font(.system(size: 12 * fontScale, weight: .semibold))
-                Spacer()
+        VStack(alignment: .leading, spacing: 5 * fontScale) {
+            // 标题行
+            HStack(spacing: 5 * fontScale) {
+                Text(title).font(.system(size: 13 * fontScale, weight: .semibold)).lineLimit(1)
                 if c?.bool("charging", false) == true {
-                    Image(systemName: "bolt.fill").font(.system(size: 11 * fontScale)).foregroundColor(.blue)
+                    Image(systemName: "bolt.fill").font(.system(size: 10 * fontScale)).foregroundColor(.blue)
+                }
+                if sentry {
+                    Image(systemName: "eye.fill").font(.system(size: 10 * fontScale)).foregroundColor(.orange)
+                }
+                Spacer(minLength: 0)
+                if entry.cache == nil {
+                    Text("无数据").font(.system(size: 9)).foregroundColor(.orange)
                 }
             }
-            HStack(spacing: 12 * fontScale) {
-                stat(socText, "电量", socColor, size: 17)
-                stat(rangeText, "续航", .primary, size: 14)
-                stat(odoText, "里程", .primary, size: 14)
+
+            HStack(alignment: .center, spacing: 8 * fontScale) {
+                VStack(alignment: .leading, spacing: 4 * fontScale) {
+                    HStack(spacing: 12 * fontScale) {
+                        stat(socText, "电量", socColor, size: 20)
+                        stat(rangeText, "续航", .primary, size: 15)
+                        stat(odoText, "里程", .primary, size: 13)
+                    }
+                    HStack(spacing: 8 * fontScale) {
+                        statLine(icon: "thermometer.medium", text: "\(c?.string("temp") ?? "--")/\(c?.string("out") ?? "--")")
+                        statLine(icon: "airbag", text: c?.string("tyre") ?? "--")
+                    }
+                }
+                Spacer(minLength: 0)
+                if let img = carImage {
+                    img.resizable().scaledToFit().frame(maxHeight: 52 * fontScale).frame(maxWidth: 96)
+                }
             }
-            statLine(icon: "thermometer.medium", text: "车内 \(c?.string("temp") ?? "--")  车外 \(c?.string("out") ?? "--")")
-            statLine(icon: "lock.\(locked == 1 ? "fill" : "open")", text: lockText, color: locked == 1 ? .primary : .orange)
-            statLine(icon: "airbag", text: "胎压 \(c?.string("tyre") ?? "--/--/--/--")")
-            if entry.cache == nil {
-                Text("没有数据 · 请打开极狐车况 App 下拉刷新")
-                    .font(.system(size: 10 * fontScale, weight: .medium))
-                    .foregroundColor(.orange)
+
+            // 控车按钮行
+            HStack(spacing: 6 * fontScale) {
+                IconCtrlButton(kind: .lock, scale: fontScale)
+                IconCtrlButton(kind: .ac, scale: fontScale)
+                IconCtrlButton(kind: .window, scale: fontScale)
+                IconCtrlButton(kind: .find, scale: fontScale)
+                Button(intent: RefreshIntent()) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 11 * fontScale, weight: .semibold))
+                        .padding(.vertical, 5 * fontScale)
+                        .padding(.horizontal, 7 * fontScale)
+                        .background(RoundedRectangle(cornerRadius: 8).fill(.secondary.opacity(0.20)))
+                }
             }
-            if let loc = c?.string("loc"), !loc.isEmpty {
-                Text(loc).font(.system(size: 9.5 * fontScale)).foregroundColor(.secondary).lineLimit(1)
+
+            HStack(spacing: 4 * fontScale) {
+                Image(systemName: locked == 1 ? "lock.fill" : "lock.open")
+                    .font(.system(size: 8.5 * fontScale))
+                    .foregroundColor(locked == 1 ? .secondary : .orange)
+                Text(lockText).font(.system(size: 8.5 * fontScale)).foregroundColor(.secondary)
+                Spacer(minLength: 0)
+                Text(timeText).font(.system(size: 8.5 * fontScale)).foregroundColor(.secondary).lineLimit(1)
             }
-            Text(timeText).font(.system(size: 8.5 * fontScale)).foregroundColor(.secondary)
         }
+        .padding(11)
+        .containerBackground(for: .widget) { ContainerRelativeShape().fill(cardBackground(sysColor)) }
     }
 
     private var title: String {
@@ -117,20 +165,22 @@ struct CompactWidgetView: View {
     }
 
     private var locked: Int {
+        let held = TspControl.heldLock()
+        if held >= 0 { return held }
         guard let c = c else { return -1 }
-        if c.bool("lockKnown", false) || c.has("locked") {
-            return c.bool("locked", false) ? 1 : 0
-        }
+        if c.bool("lockKnown", false) || c.has("locked") { return c.bool("locked", false) ? 1 : 0 }
         return -1
     }
 
     private var lockText: String {
         switch locked {
-        case 1: return "已锁车" + (c?.bool("sentry", false) == true ? " · 哨兵开" : "")
+        case 1: return "已锁车"
         case 0: return "未锁车"
         default: return "门锁未知"
         }
     }
+
+    private var sentry: Bool { c?.bool("sentry", false) ?? false }
 
     private var socText: String { c?.string("soc") ?? "--%" }
     private var rangeText: String { c?.string("range") ?? "--km" }
@@ -151,33 +201,30 @@ struct CompactWidgetView: View {
         return t
     }
 
+    private var carImage: Image? {
+        let group = CarModel.resolve(entry.session.modelCode, entry.session.vin, entry.session.model)
+        if let ui = CarImages.load(CarModel.defaultCarImage(group)) {
+            return Image(uiImage: ui)
+        }
+        return nil
+    }
+
     private func stat(_ v: String, _ label: String, _ color: Color, size: CGFloat) -> some View {
-        VStack(spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
             Text(v).font(.system(size: size * fontScale, weight: .semibold, design: .rounded)).foregroundColor(color).lineLimit(1).minimumScaleFactor(0.7)
             Text(label).font(.system(size: 8.5 * fontScale)).foregroundColor(.secondary)
         }
     }
 
-    private func statLine(icon: String, text: String, color: Color = .primary) -> some View {
+    private func statLine(icon: String, text: String) -> some View {
         HStack(spacing: 3 * fontScale) {
-            Image(systemName: icon).font(.system(size: 9.5 * fontScale)).foregroundColor(.secondary)
-            Text(text).font(.system(size: 9.5 * fontScale, weight: .medium)).foregroundColor(color).lineLimit(1)
+            Image(systemName: icon).font(.system(size: 8.5 * fontScale)).foregroundColor(.secondary)
+            Text(text).font(.system(size: 9 * fontScale, weight: .medium)).lineLimit(1)
         }
     }
 }
 
-struct CompactWidget: Widget {
-    var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "ArcfoxCompactWidget", provider: CarProvider()) { entry in
-            CompactWidgetView(entry: entry)
-        }
-        .configurationDisplayName("极狐车况 · 紧凑")
-        .description("车型 / 续航 / 电量 / 里程 / 内外温度 / 胎压 / 位置 + 车辆图")
-        .supportedFamilies([.systemMedium])
-    }
-}
-
-// ---------------------------------------------------------------- 带车控 4×4（large）
+// ---------------------------------------------------------------- 大号：完整车况 + 车控面板
 
 struct ControlWidgetView: View {
     var entry: CarEntry
@@ -186,59 +233,104 @@ struct ControlWidgetView: View {
     private var c: JSON? { entry.cache }
     private var fontScale: CGFloat { CGFloat(Store.getInt(Store.kWidgetFontPct, 100)) / 100 }
 
-    private var cardColor: Color {
-        let alpha = Double(Store.getInt(Store.kWidgetAlpha, 100)) / 100
-        let theme = Store.get(Store.kWidgetTheme, "auto")
-        let dark = theme == "dark" || (theme == "auto" && sysColor == .dark)
-        return dark ? Color(red: 0.10, green: 0.12, blue: 0.15).opacity(alpha)
-                    : Color(red: 0.93, green: 0.95, blue: 0.97).opacity(alpha)
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 10 * fontScale) {
-            HStack {
+        VStack(alignment: .leading, spacing: 8 * fontScale) {
+            HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2 * fontScale) {
                     Text(entry.session.model.isEmpty ? (c?.string("title") ?? "我的极狐") : entry.session.model)
-                        .font(.system(size: 15 * fontScale, weight: .semibold))
+                        .font(.system(size: 15 * fontScale, weight: .semibold)).lineLimit(1)
                     Text(c?.string("status") ?? "还没登录 / 授权")
-                        .font(.system(size: 10 * fontScale)).foregroundColor(.secondary)
+                        .font(.system(size: 10 * fontScale)).foregroundColor(.secondary).lineLimit(1)
                 }
-                Spacer()
-                RefreshButton()
-                    .buttonStyle(.borderless)
+                Spacer(minLength: 0)
+                if let img = carImage {
+                    img.resizable().scaledToFit().frame(maxHeight: 30 * fontScale).frame(maxWidth: 92)
+                }
+                Button(intent: RefreshIntent()) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 12 * fontScale, weight: .semibold))
+                        .padding(6)
+                        .background(Circle().fill(.secondary.opacity(0.20)))
+                }
             }
+
             HStack(spacing: 14 * fontScale) {
                 bigStat(c?.string("soc") ?? "--%", "电量", socColor, 30)
                 bigStat(c?.string("range") ?? "--km", "续航", .primary, 22)
                 bigStat(c?.string("odo") ?? "--", "里程", .primary, 22)
-                bigStat(c?.string("temp") ?? "--", "车内温", .primary, 22)
+                bigStat(c?.string("temp") ?? "--", "车内温", .primary, 20)
+                bigStat(c?.string("out") ?? "--", "车外温", .primary, 20)
             }
+
             if entry.cache == nil {
                 Text("没有数据 · 请打开极狐车况 App 下拉刷新")
-                    .font(.system(size: 10 * fontScale, weight: .medium))
-                    .foregroundColor(.orange)
+                    .font(.system(size: 10 * fontScale, weight: .medium)).foregroundColor(.orange)
             }
+
+            // 状态胶囊
+            HStack(spacing: 6 * fontScale) {
+                pill(locked == 1 ? "lock.fill" : "lock.open", lockText, locked == 1 ? .green : .orange)
+                pill("fanblades", acText, acOn ? .blue : .secondary)
+                pill("rectangle.split.3x1", winText, winOn ? .blue : .secondary)
+                pill(sentry ? "eye.fill" : "eye", sentry ? "哨兵开" : "哨兵关", sentry ? .orange : .secondary)
+                if c?.bool("charging", false) == true { pill("bolt.fill", "充电中", .blue) }
+            }
+
             if let loc = c?.string("loc"), !loc.isEmpty {
                 Label(loc, systemImage: "mappin.and.ellipse")
                     .font(.system(size: 10 * fontScale)).foregroundColor(.secondary).lineLimit(1)
             }
-            HStack(spacing: 16 * fontScale) {
+            HStack(spacing: 14 * fontScale) {
                 statLine(icon: "airbag", text: "胎压 \(c?.string("tyre") ?? "--/--/--/--")")
-                Spacer()
+                Spacer(minLength: 0)
+                Text(timeText).font(.system(size: 9 * fontScale)).foregroundColor(.secondary).lineLimit(1)
             }
-            HStack(spacing: 10 * fontScale) {
+
+            Spacer(minLength: 2)
+
+            HStack(spacing: 8 * fontScale) {
                 LockButton()
-                    .buttonStyle(.borderless)
                 AcButton()
-                    .buttonStyle(.borderless)
                 WindowButton()
-                    .buttonStyle(.borderless)
                 FindButton()
-                    .buttonStyle(.borderless)
             }
         }
         .padding(14)
-        .containerBackground(for: .widget) { ContainerRelativeShape().fill(cardColor) }
+        .containerBackground(for: .widget) { ContainerRelativeShape().fill(cardBackground(sysColor)) }
+    }
+
+    private var locked: Int {
+        let held = TspControl.heldLock()
+        if held >= 0 { return held }
+        guard let c = c else { return -1 }
+        if c.bool("lockKnown", false) || c.has("locked") { return c.bool("locked", false) ? 1 : 0 }
+        return -1
+    }
+
+    private var lockText: String {
+        switch locked {
+        case 1: return "已锁车"
+        case 0: return "未锁车"
+        default: return "门锁未知"
+        }
+    }
+
+    private var acOn: Bool { c?.bool("ac", false) ?? false }
+    private var acText: String { c == nil ? "空调未知" : (acOn ? "空调开" : "空调关") }
+
+    private var winOn: Bool { (c?.int("win", 0) ?? 0) > 0 }
+    private var winText: String {
+        if c == nil { return "车窗未知" }
+        if !(c?.bool("winKnown", false) ?? false) { return "车窗未知" }
+        return winOn ? "车窗开" : "车窗关"
+    }
+
+    private var sentry: Bool { c?.bool("sentry", false) ?? false }
+
+    private var timeText: String {
+        var t = "更新 " + (c?.string("ts") ?? "--")
+        if let d = c?.string("dataTs"), !d.isEmpty { t = "数据 \(d) · \(c?.string("ts") ?? "--")" }
+        return t
     }
 
     private var socColor: Color {
@@ -248,6 +340,25 @@ struct ControlWidgetView: View {
             if v < 40 { return .orange }
         }
         return .primary
+    }
+
+    private var carImage: Image? {
+        let group = CarModel.resolve(entry.session.modelCode, entry.session.vin, entry.session.model)
+        if let ui = CarImages.load(CarModel.defaultCarImage(group)) {
+            return Image(uiImage: ui)
+        }
+        return nil
+    }
+
+    private func pill(_ icon: String, _ text: String, _ color: Color) -> some View {
+        HStack(spacing: 3 * fontScale) {
+            Image(systemName: icon).font(.system(size: 9 * fontScale))
+            Text(text).font(.system(size: 9 * fontScale, weight: .medium)).lineLimit(1)
+        }
+        .foregroundColor(color)
+        .padding(.horizontal, 6 * fontScale)
+        .padding(.vertical, 3 * fontScale)
+        .background(Capsule().fill(color.opacity(0.14)))
     }
 
     private func bigStat(_ v: String, _ label: String, _ color: Color, _ size: CGFloat) -> some View {
@@ -265,23 +376,35 @@ struct ControlWidgetView: View {
     }
 }
 
-struct ControlWidget: Widget {
-    var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "ArcfoxControlWidget", provider: CarProvider()) { entry in
+// ---------------------------------------------------------------- 入口（一个小组件，中/大两种尺寸）
+
+struct ArcfoxWidgetEntryView: View {
+    @Environment(\.widgetFamily) private var family
+    var entry: CarEntry
+
+    var body: some View {
+        if family == .systemLarge {
             ControlWidgetView(entry: entry)
+        } else {
+            CompactWidgetView(entry: entry)
         }
-        .configurationDisplayName("极狐车况 · 带车控")
-        .description("解锁 / 空调 / 车窗 / 寻车四个车控入口 + 完整车况")
-        .supportedFamilies([.systemLarge])
     }
 }
 
-// ---------------------------------------------------------------- 入口
+struct ArcfoxWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "ArcfoxCompactWidget", provider: CarProvider()) { entry in
+            ArcfoxWidgetEntryView(entry: entry)
+        }
+        .configurationDisplayName("极狐车况")
+        .description("中号：车况 + 一键控车；大号：完整车况 + 车控面板（长按可切换尺寸）")
+        .supportedFamilies([.systemMedium, .systemLarge])
+    }
+}
 
 @main
 struct ArcfoxWidgetBundle: WidgetBundle {
     var body: some Widget {
-        CompactWidget()
-        ControlWidget()
+        ArcfoxWidget()
     }
 }
