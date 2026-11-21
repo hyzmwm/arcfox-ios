@@ -71,7 +71,7 @@ enum Store {
     static let kFirstRunAck = "first_run_ack"
 
     static func ctrlKey() -> String {
-        let s = get(kCtrlKey)
+        let s = read(kCtrlKey)
         if s.count >= 8 { return s }
         var out = ""
         while out.count < 16 {
@@ -104,21 +104,21 @@ final class Session {
     private let kVin = "acct_vin"
     private let lock = NSLock()
 
-    func get(_ k: String) -> String { Store.get(k) }
+    func read(_ k: String) -> String { Store.get(k) }
 
-    var phone: String { get(kPhone) }
-    var vin: String { get(kVin) }
-    var model: String { get(kModel) }
-    var modelCode: String { get(kModelCode) }
-    var color: String { get(kColor) }
-    var plate: String { get(kPlate) }
-    var tspUid: String { get(kTspUid) }
-    var sdsTspId: String { get(kSdsTsp) }
-    var authUid: String { get(kAuthUid) }
-    var mainToken: String { get(kMain) }
-    var tspToken: String { get(kTspToken) }
-    var refreshToken: String { get(kRefresh) }
-    var rcToken: String { get(kRC) }
+    var phone: String { read(kPhone) }
+    var vin: String { read(kVin) }
+    var model: String { read(kModel) }
+    var modelCode: String { read(kModelCode) }
+    var color: String { read(kColor) }
+    var plate: String { read(kPlate) }
+    var tspUid: String { read(kTspUid) }
+    var sdsTspId: String { read(kSdsTsp) }
+    var authUid: String { read(kAuthUid) }
+    var mainToken: String { read(kMain) }
+    var tspToken: String { read(kTspToken) }
+    var refreshToken: String { read(kRefresh) }
+    var rcToken: String { read(kRC) }
 
     var authUidCandidates: [String] {
         var set: [String] = []
@@ -134,7 +134,7 @@ final class Session {
     var loggedIn: Bool { !mainToken.isEmpty }
 
     var deviceId: String {
-        let s = get(kDevice)
+        let s = read(kDevice)
         if !s.isEmpty { return s }
         let n = UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
         Store.set(kDevice, n)

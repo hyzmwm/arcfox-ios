@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// 登录 + 车况授权（对应 LoginActivity.java 两阶段流程）。
 struct LoginView: View {

@@ -1,5 +1,6 @@
 import WidgetKit
 import SwiftUI
+import UIKit
 
 /// 小组件数据源：从 App Group 读车况缓存（主 App / 刷新按钮负责拉新）。
 struct CarEntry: TimelineEntry {

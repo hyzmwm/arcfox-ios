@@ -167,7 +167,7 @@ enum ArcApi {
     static func deviceModel() -> String {
         var sys = utsname(); uname(&sys)
         let mirror = Mirror(reflecting: sys.machine)
-        let id = mirror.children.reduce("") { $0 + ($1.value as? UInt8).map { String(UnicodeScalar($0)) } ?? "" }.trimmingCharacters(in: .controlCharacters)
+        let id = mirror.children.reduce("") { $0 + (($1.value as? UInt8).map { String(UnicodeScalar($0)) } ?? "") }.trimmingCharacters(in: .controlCharacters)
         return id.isEmpty ? "iPhone" : id
     }
 

@@ -1,5 +1,6 @@
 import SwiftUI
 import PhotosUI
+import UIKit
 
 /// 高级功能面板（对应 Android 首页「高级功能」五组：远程控制 / 小组件标题 / 高德 Key / 小组件样式 / 字体与图标 + 车图）
 struct AdvancedSettingsView: View {

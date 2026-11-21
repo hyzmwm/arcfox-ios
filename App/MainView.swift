@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// 首页：顶部车辆大图卡 + 三组折叠（账号 / 车况详情 / 高级功能）。
 /// 版式对应 Android MainActivity（v3.0 整页折叠交互）。
@@ -125,7 +126,10 @@ struct MainView: View {
     }
 
     private var titleText: String {
-        if let c = st.cache, let t = c.string("title") as String?, !t.isEmpty { return t }
+        if let c = st.cache {
+            let t = c.string("title")
+            if !t.isEmpty { return t }
+        }
         return "我的极狐"
     }
 
