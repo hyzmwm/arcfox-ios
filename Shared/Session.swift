@@ -71,7 +71,7 @@ enum Store {
     static let kFirstRunAck = "first_run_ack"
 
     static func ctrlKey() -> String {
-        let s = read(kCtrlKey)
+        let s = get(kCtrlKey)
         if s.count >= 8 { return s }
         var out = ""
         while out.count < 16 {
