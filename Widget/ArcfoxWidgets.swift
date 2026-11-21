@@ -38,7 +38,7 @@ struct CarProvider: TimelineProvider {
                 fetchError = r.error ?? "取不到车况"
             }
         }
-        let groupOk = (UserDefaults(suiteName: Store.appGroupId)?.string(forKey: "__probe")) != nil
+        let groupOk = Store.probeGroup()
         let entry = CarEntry(date: .now, cache: cache, session: Session.shared,
                              fetchError: fetchError, groupOk: groupOk)
         // 15 分钟后过期触发下一次 timeline 重建（配合 BGAppRefresh 的节奏）
@@ -211,7 +211,7 @@ struct CompactWidgetView: View {
     private var sentry: Bool { c?.bool("sentry", false) ?? false }
 
     private var hintText: String {
-        if !entry.groupOk { return "小组件无共享权限 · 请用 TrollStore 重装" }
+        if !entry.groupOk { return "共享存储异常 · 需 TrollStore 环境重装" }
         if !entry.fetchError.isEmpty { return "自取失败：\(entry.fetchError)" }
         return "请打开极狐车况 App 下拉刷新一次"
     }
@@ -335,7 +335,7 @@ struct ControlWidgetView: View {
     }
 
     private var hintText: String {
-        if !entry.groupOk { return "小组件无共享权限(App Group) · 请用 TrollStore 重装" }
+        if !entry.groupOk { return "共享存储异常 · 需 TrollStore 环境重装" }
         if !entry.fetchError.isEmpty { return "自取失败：\(entry.fetchError)" }
         return "请打开极狐车况 App 下拉刷新一次"
     }

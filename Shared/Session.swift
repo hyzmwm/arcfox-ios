@@ -1,96 +1,95 @@
 import Foundation
 
 /// App Group 共享存储：主 App 与小组件扩展共用一份键值存储（对应 Android 的 SharedPreferences）。
+/// 共享存储：优先用固定路径共享文件（TrollStore + no-sandbox 私有权能下 App 与
+/// 小组件扩展直接读写同一文件，不依赖 App Group 容器）；文件通道不可用时自动
+/// 回退 UserDefaults suite（对应 Android 的 SharedPreferences，API 保持一致）。
 enum Store {
     static let appGroupId = "group.com.arcfoxplus.widget"
     static let name = "arcfox_widget_cfg"
+    static let sharedPath = "/var/mobile/Library/Preferences/arcfox_widget_shared.plist"
 
-    static var d: UserDefaults {
-        UserDefaults(suiteName: appGroupId) ?? .standard
+    static var d: UserDefaults { UserDefaults(suiteName: appGroupId) ?? .standard }
+
+    private static let ioLock = NSLock()
+    private static var fileUsable: Bool?
+
+    private static let keyPrefixes = ["acct_", "cache", "last_", "widget_", "geo_", "amap_",
+                                      "vehicle_", "ctrl_", "refresh_", "tsp_", "ac_", "lock_",
+                                      "win_", "first_run_", "auto_", "__probe"]
+
+    private static func ours(_ k: String) -> Bool { keyPrefixes.contains { k.hasPrefix($0) } }
+
+    private static func writeDictRaw(_ dict: [String: Any]) -> Bool {
+        guard let data = try? PropertyListSerialization.data(fromPropertyList: dict, format: .xml, options: 0) else { return false }
+        return FileManager.default.createFile(atPath: sharedPath, contents: data,
+            attributes: [FileAttributeKey.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication])
+    }
+
+    private static func seedFromSuite() -> [String: Any] {
+        var seed: [String: Any] = [:]
+        for (k, v) in d.dictionaryRepresentation() where ours(k) { seed[k] = v }
+        return seed
+    }
+
+    /// 读全量：文件通道优先；文件不存在时先用 suite 旧数据建文件（自动迁移）。
+    private static func loadAll() -> [String: Any] {
+        ioLock.lock(); defer { ioLock.unlock() }
+        if let dict = NSDictionary(contentsOfFile: sharedPath) as? [String: Any] {
+            fileUsable = true
+            return dict
+        }
+        let seed = seedFromSuite()
+        if writeDictRaw(seed), FileManager.default.fileExists(atPath: sharedPath) {
+            fileUsable = true
+            return seed
+        }
+        fileUsable = false
+        return seed   // 回退：suite（各进程独立，仅保底）
+    }
+
+    private static func saveValue(_ k: String, _ v: Any?) {
+        ioLock.lock(); defer { ioLock.unlock() }
+        var dict = (NSDictionary(contentsOfFile: sharedPath) as? [String: Any]) ?? seedFromSuite()
+        if let v = v { dict[k] = v } else { dict.removeValue(forKey: k) }
+        if writeDictRaw(dict) { return }
+        fileUsable = false
+        // 回退写 suite
+        if let s = v as? String { d.set(s, forKey: k) }
+        else if let i = v as? Int { d.set(i, forKey: k) }
+        else { d.removeObject(forKey: k) }
     }
 
     static func get(_ k: String, _ def: String = "") -> String {
-        let s = d.string(forKey: k)
+        let s = loadAll()[k] as? String
         return (s == nil || s!.isEmpty) ? def : s!
     }
 
-    static func set(_ k: String, _ v: String) {
-        d.set(v, forKey: k)
-    }
+    static func set(_ k: String, _ v: String) { saveValue(k, v) }
 
-    static func remove(_ k: String) {
-        d.removeObject(forKey: k)
-    }
-
-    /// 诊断：App Group 是否真的可读写（UserDefaults 失败会静默回退 .standard，
-    /// 主 App 正常但小组件读不到——用探针键真实验证）。
-    static func probeGroup() -> Bool {
-        guard let g = UserDefaults(suiteName: appGroupId) else { return false }
-        let t = "ok\(Int(Date().timeIntervalSince1970))"
-        g.set(t, forKey: "__probe")
-        return g.string(forKey: "__probe") == t
-    }
-
+    static func remove(_ k: String) { saveValue(k, nil) }
 
     static func getInt(_ k: String, _ def: Int) -> Int {
-        let v = d.integer(forKey: k)
-        return d.object(forKey: k) == nil ? def : v
+        loadAll()[k] as? Int ?? def
     }
 
-    static func setInt(_ k: String, _ v: Int) {
-        d.set(v, forKey: k)
-    }
+    static func setInt(_ k: String, _ v: Int) { saveValue(k, v) }
 
     static func getLong(_ k: String, _ def: Int64) -> Int64 {
-        let v = d.integer(forKey: k)
-        return d.object(forKey: k) == nil ? def : Int64(v)
+        if let v = loadAll()[k] as? Int { return Int64(v) }
+        return def
     }
 
-    static func setLong(_ k: String, _ v: Int64) {
-        d.set(v, forKey: k)
+    static func setLong(_ k: String, _ v: Int64) { saveValue(k, Int(v)) }
+
+    /// 诊断：跨进程共享是否真实可用（写探针键并确认落在共享文件里）。
+    @discardableResult
+    static func probeGroup() -> Bool {
+        let t = "ok\(Int(Date().timeIntervalSince1970))"
+        set("__probe", t)
+        _ = loadAll()
+        return fileUsable == true && get("__probe") == t
     }
-
-    // ------------------------------------------------------------- 键名（与 Android 版一致）
-
-    static let kCache = "cache"
-    static let kCacheTs = "cache_ts"
-    static let kLastError = "last_error"
-    static let kAutoMin = "auto_refresh_min"
-    static let kWidgetTheme = "widget_theme"
-    static let kWidgetTitle = "widget_title"
-    static let kWidgetScale = "widget_scale"
-    static let kWidgetFontPct = "widget_font_pct"
-    static let kWidgetIconDp = "widget_icon_dp"
-    static let kWidgetAlpha = "widget_alpha"
-    static let kWidgetRadius = "widget_radius"
-    static let kLastNight = "widget_night_applied"
-    static let kGeoCache = "geo_cache"
-    static let kAmapUser = "amap_key_user"
-    static let kVehicleTs = "vehicle_ts"
-    static let kVehicleRaw = "vehicle_raw"
-    static let kCarColorName = "car_color_name"
-    static let kCtrlKey = "ctrl_key"
-    static let kCtrlLog = "ctrl_log"
-    static let kCtrlMsg = "ctrl_msg"
-    static let kRefreshLog = "refresh_log"
-    static let kTspSeq = "tsp_seq"
-    static let kAcTemp = "ac_temp"
-    static let kAcHold = "ac_hold"
-    static let kLockHold = "lock_hold"
-    static let kWinHold = "win_hold"
-    static let kFirstRunAck = "first_run_ack"
-
-    static func ctrlKey() -> String {
-        let s = get(kCtrlKey)
-        if s.count >= 8 { return s }
-        var out = ""
-        while out.count < 16 {
-            out += String(format: "%x", Int.random(in: 0..<16))
-        }
-        set(kCtrlKey, out)
-        return out
-    }
-}
 
 /// 登录态（对应 Android Session.java）
 final class Session {

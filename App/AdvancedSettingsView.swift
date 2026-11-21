@@ -16,7 +16,7 @@ struct AdvancedSettingsView: View {
             // App Group 诊断 + 手动重载小组件
             sub("小组件数据链路")
             HStack {
-                Text("共享存储(App Group)：")
+                Text("共享存储(跨进程文件)：")
                 Text(Store.probeGroup() ? "正常" : "异常！小组件读不到数据")
                     .fontWeight(.semibold)
                     .foregroundColor(Store.probeGroup() ? .green : .red)
