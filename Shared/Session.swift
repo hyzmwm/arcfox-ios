@@ -329,7 +329,7 @@ final class Session {
 
     // ------------------------------------------------------------- helpers
 
-    static func firstNonEmpty(_ vals: String...) -> String {
+    func firstNonEmpty(_ vals: String...) -> String {
         for v in vals where !v.isEmpty && v != "null" { return v }
         return ""
     }

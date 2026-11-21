@@ -6,7 +6,7 @@ enum CarModel {
     static let unknown = 0
     static let t5 = -1
     static let kaola = -2
-    static let as = -3
+    static let alphaS = -3
     static let s5 = -4
 
     /// 车架号前缀表（全部取自官方公告与实车 VIN）
@@ -15,10 +15,10 @@ enum CarModel {
         ("LNBMC14", t5),
         ("LNBMC18", t5),
         ("LNBMC5G", kaola),
-        ("LNBSC12", as),
-        ("LNBSC13", as),
-        ("LNBSC1L", as),
-        ("LNBSC22", as),
+        ("LNBSC12", alphaS),
+        ("LNBSC13", alphaS),
+        ("LNBSC1L", alphaS),
+        ("LNBSC22", alphaS),
         ("LNBSC24", s5),
     ]
 
@@ -36,7 +36,7 @@ enum CarModel {
         let c = norm(code)
         if c.isEmpty { return unknown }
         if c.hasPrefix("N50") { return t5 }
-        if c.hasPrefix("N51") { return as }
+        if c.hasPrefix("N51") { return alphaS }
         if c.hasPrefix("N61") { return s5 }
         if c.hasPrefix("A14") { return kaola }
         return unknown
@@ -57,7 +57,7 @@ enum CarModel {
         if m.contains("考拉") || m.contains("KAOLA") || m.contains("KOALA") { return kaola }
         if m.contains("S5") || m.contains("ΑS5") { return s5 }
         if m.contains("T5") || m.contains("ΑT5") { return t5 }
-        if m.contains("阿尔法S") || m.contains("ALPHAS") || m.contains("ΑS") { return as }
+        if m.contains("阿尔法S") || m.contains("ALPHAS") || m.contains("ΑS") { return alphaS }
         return unknown
     }
 
@@ -73,7 +73,7 @@ enum CarModel {
     static func label(_ group: Int) -> String {
         switch group {
         case t5: return "阿尔法T5"
-        case as: return "阿尔法S"
+        case alphaS: return "阿尔法S"
         case s5: return "阿尔法S5"
         case kaola: return "考拉"
         default: return "未识别"
@@ -103,7 +103,7 @@ enum CarModel {
         switch key.trimmingCharacters(in: .whitespaces).lowercased() {
         case "t5", "t5_real": return t5
         case "kaola": return kaola
-        case "alpha_s", "as": return as
+        case "alpha_s", "as": return alphaS
         case "s5": return s5
         default: return unknown
         }
@@ -113,7 +113,7 @@ enum CarModel {
     static func defaultCarImage(_ group: Int) -> String {
         switch group {
         case s5: return "car_s5_nce"
-        case as: return "car_as_white"
+        case alphaS: return "car_as_white"
         case kaola: return "car_kaola_official"
         default: return "car_t5_caw"
         }
