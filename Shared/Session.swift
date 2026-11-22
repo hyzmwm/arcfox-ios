@@ -5,11 +5,30 @@ import Foundation
 /// 小组件扩展直接读写同一文件，不依赖 App Group 容器）；文件通道不可用时自动
 /// 回退 UserDefaults suite（对应 Android 的 SharedPreferences，API 保持一致）。
 enum Store {
-    static let appGroupId = "group.com.arcfoxplus.widget"
     static let name = "arcfox_widget_cfg"
     static let sharedPath = "/var/mobile/Library/Preferences/arcfox_widget_shared.plist"
 
+    /// App Group ID 不写死：从签名时嵌入的 embedded.mobileprovision 里解析证书
+    /// 实际授权的 App Group（全能签/自签换证书、换组名都自动适配）。
+    static let appGroupId: String = resolveGroupId()
+
     static var d: UserDefaults { UserDefaults(suiteName: appGroupId) ?? .standard }
+
+    private static func resolveGroupId() -> String {
+        let fallback = "group.com.arcfoxplus.widget"
+        guard let path = Bundle.main.path(forResource: "embedded", ofType: "mobileprovision"),
+              let raw = try? Data(contentsOf: URL(fileURLWithPath: path)) else { return fallback }
+        // CMS 容器里夹着一段明文 XML plist，直接切出来
+        let body = String(data: raw, encoding: .isoLatin1) ?? String(data: raw, encoding: .utf8) ?? ""
+        guard let start = body.range(of: "<?xml"), let end = body.range(of: "</plist>") else { return fallback }
+        let xml = String(body[start.lowerBound..<end.upperBound])
+        guard let data = xml.data(using: .utf8),
+              let plist = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any],
+              let ent = plist["Entitlements"] as? [String: Any],
+              let groups = ent["com.apple.security.application-groups"] as? [String],
+              let g = groups.first, !g.isEmpty else { return fallback }
+        return g
+    }
 
     private static let ioLock = NSLock()
     private static var fileUsable: Bool?
@@ -82,13 +101,23 @@ enum Store {
 
     static func setLong(_ k: String, _ v: Int64) { saveValue(k, Int(v)) }
 
-    /// 诊断：跨进程共享是否真实可用（写探针键并确认落在共享文件里）。
+    /// 诊断：跨进程共享是否真实可用——共享文件通道，或证书授权的 App Group 容器。
     @discardableResult
     static func probeGroup() -> Bool {
         let t = "ok\(Int(Date().timeIntervalSince1970))"
         set("__probe", t)
         _ = loadAll()
-        return fileUsable == true && get("__probe") == t
+        if fileUsable == true && get("__probe") == t { return true }
+        return FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupId) != nil
+    }
+
+    /// 诊断用：当前走的是哪条通道。
+    static var channelName: String {
+        if fileUsable == true { return "共享文件(TrollStore)" }
+        if FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupId) != nil {
+            return "App Group(\(appGroupId))"
+        }
+        return "各自本地存储(无共享！)"
     }
 
     // ------------------------------------------------------------- 键名（与 Android 版一致）
