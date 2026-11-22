@@ -9,6 +9,7 @@ enum BackgroundRefresh {
         BGTaskScheduler.shared.register(forTaskWithIdentifier: taskId, using: nil) { task in
             scheduleNext()
             let r = Fetcher.fetch()
+            if r.cache != nil { _ = CloudSync.upload() }
             WidgetBridge.reloadWidgets()
             task.setTaskCompleted(success: r.cache != nil)
         }
@@ -48,6 +49,8 @@ final class AppState: ObservableObject {
         loading = true
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let r = Fetcher.fetch()
+            // 拉到车况后顺手上传云端（小组件云同步通道；未开启时是空操作）
+            if r.cache != nil { _ = CloudSync.upload() }
             DispatchQueue.main.async {
                 guard let self = self else { return }
                 self.loading = false

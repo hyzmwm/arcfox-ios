@@ -49,7 +49,10 @@ enum Store {
 
     private static let keyPrefixes = ["acct_", "cache", "last_", "widget_", "geo_", "amap_",
                                       "vehicle_", "ctrl_", "refresh_", "tsp_", "ac_", "lock_",
-                                      "win_", "first_run_", "auto_", "__probe"]
+                                      "win_", "first_run_", "auto_", "__probe", "cloud_"]
+
+    /// 云同步上传时排除的大体积诊断键（小组件用不到）。
+    private static let uploadSkip = ["vehicle_raw", "vehicle_ts", "ctrl_log", "refresh_log", "geo_cache"]
 
     private static func ours(_ k: String) -> Bool { keyPrefixes.contains { k.hasPrefix($0) } }
 
@@ -115,6 +118,20 @@ enum Store {
 
     static func setLong(_ k: String, _ v: Int64) { saveValue(k, Int(v)) }
 
+    /// 导出全部自有键（云同步上传用；排除大体积诊断键）。
+    static func exportDict() -> [String: Any] {
+        var out: [String: Any] = [:]
+        for (k, v) in loadAll() where ours(k) && !uploadSkip.contains(k) { out[k] = v }
+        return out
+    }
+
+    /// 云端字典导入本地 suite（小组件进程用；不碰共享文件通道）。
+    static func importDict(_ dict: [String: Any]) {
+        for (k, v) in dict where ours(k) {
+            d.set(v, forKey: k)
+        }
+    }
+
     /// 诊断：跨进程共享是否真实可用——共享文件通道，或证书授权的 App Group 容器。
     @discardableResult
     static func probeGroup() -> Bool {
@@ -163,6 +180,9 @@ enum Store {
     static let kLockHold = "lock_hold"
     static let kWinHold = "win_hold"
     static let kFirstRunAck = "first_run_ack"
+    static let kCloudTopic = "cloud_topic"
+    static let kCloudOn = "cloud_sync_on"
+    static let kCloudTs = "cloud_sync_ts"
 
     static func ctrlKey() -> String {
         let s = get(kCtrlKey)

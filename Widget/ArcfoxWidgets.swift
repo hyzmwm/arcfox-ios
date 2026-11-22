@@ -2,13 +2,14 @@ import WidgetKit
 import SwiftUI
 import UIKit
 
-/// 小组件数据源：从 App Group 读车况缓存（主 App / 刷新按钮负责拉新）。
+/// 小组件数据源：优先共享缓存 → 云同步（同步码）→ 扩展进程自取。
 struct CarEntry: TimelineEntry {
     let date: Date
     let cache: JSON?
     let session: Session
     var fetchError: String = ""
     var groupOk: Bool = true
+    var code: String = ""
 }
 
 struct CarProvider: TimelineProvider {
@@ -16,34 +17,60 @@ struct CarProvider: TimelineProvider {
         CarEntry(date: .now, cache: sampleCache(), session: Session.shared)
     }
 
-    func getSnapshot(in context: Context, completion: @escaping (CarEntry) -> Void) {
-        completion(CarEntry(date: .now, cache: TspControl.readCache() ?? sampleCache(), session: Session.shared))
+    func getSnapshot(for configuration: SyncConfigIntent, in context: Context, completion: @escaping (CarEntry) -> Void) {
+        completion(resolve(configuration))
     }
 
-    func getTimeline(in context: Context, completion: @escaping (Timeline<CarEntry>) -> Void) {
-        // ① 先读共享缓存；② 为空或过期则扩展进程自取（token 同样来自共享存储）
+    func getTimeline(for configuration: SyncConfigIntent, in context: Context, completion: @escaping (Timeline<CarEntry>) -> Void) {
+        let entry = resolve(configuration)
+        let autoMin = max(Store.getInt(Store.kAutoMin, 15), 5)
+        let next = Calendar.current.date(byAdding: .minute, value: autoMin, to: entry.date)!
+        completion(Timeline(entries: [entry], policy: .after(next)))
+    }
+
+    private func resolve(_ configuration: SyncConfigIntent) -> CarEntry {
+        // 同步码：配置里填的优先，并记住（交互按钮的 Intent 复用）
+        var code = configuration.syncCode.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !code.isEmpty {
+            Store.set(Store.kCloudTopic, code)
+        } else {
+            code = Store.get(Store.kCloudTopic)
+        }
+
         var cache = TspControl.readCache()
         var fetchError = ""
         let autoMin = max(Store.getInt(Store.kAutoMin, 15), 5)
-        let ts = Store.getLong(Store.kCacheTs, 0)
-        let stale = ts == 0 || Date().timeIntervalSince1970 * 1000 - Double(ts) > Double(autoMin) * 60_000
+        var ts = Store.getLong(Store.kCacheTs, 0)
+        var stale = ts == 0 || Date().timeIntervalSince1970 * 1000 - Double(ts) > Double(autoMin) * 60_000
+
         if cache == nil || stale {
-            let r = Fetcher.fetch()
-            if let c = r.cache {
-                TspControl.reconcile(c)
-                Store.set(Store.kCache, c.rawUnsorted)
-                Store.setLong(Store.kCacheTs, Int64(Date().timeIntervalSince1970 * 1000))
-                cache = c
-            } else {
-                fetchError = r.error ?? "取不到车况"
+            // ① 云同步兼底（无 App Group 时的主通道）：拉回并导入本地，登录态/车况/控车状态都有了
+            if !code.isEmpty {
+                let derr = CloudSync.download(code: code)
+                cache = TspControl.readCache()
+                ts = Store.getLong(Store.kCacheTs, 0)
+                stale = ts == 0 || Date().timeIntervalSince1970 * 1000 - Double(ts) > Double(autoMin) * 60_000
+                if cache == nil || stale {
+                    fetchError = "云同步：" + (derr ?? "未取到")
+                }
+            }
+            // ② 仍无数据 → 扩展进程自取（token 来自共享存储或云端导入）
+            if cache == nil || stale {
+                let r = Fetcher.fetch()
+                if let c = r.cache {
+                    TspControl.reconcile(c)
+                    Store.set(Store.kCache, c.rawUnsorted)
+                    Store.setLong(Store.kCacheTs, Int64(Date().timeIntervalSince1970 * 1000))
+                    cache = c
+                    fetchError = ""
+                } else if fetchError.isEmpty {
+                    fetchError = r.error ?? "取不到车况"
+                }
             }
         }
         let groupOk = Store.probeGroup()
-        let entry = CarEntry(date: .now, cache: cache, session: Session.shared,
-                             fetchError: fetchError, groupOk: groupOk)
-        // 15 分钟后过期触发下一次 timeline 重建（配合 BGAppRefresh 的节奏）
-        let next = Calendar.current.date(byAdding: .minute, value: autoMin, to: entry.date)!
-        completion(Timeline(entries: [entry], policy: .after(next)))
+        return CarEntry(date: .now, cache: cache, session: Session.shared,
+                        fetchError: fetchError, groupOk: groupOk, code: code)
     }
 
     private func sampleCache() -> JSON {
@@ -211,8 +238,11 @@ struct CompactWidgetView: View {
     private var sentry: Bool { c?.bool("sentry", false) ?? false }
 
     private var hintText: String {
-        if !entry.groupOk { return "共享存储异常 · 需 TrollStore 环境重装" }
-        if !entry.fetchError.isEmpty { return "自取失败：\(entry.fetchError)" }
+        if !entry.fetchError.isEmpty { return entry.fetchError }
+        if !entry.groupOk {
+            if entry.code.isEmpty { return "长按卡片→编辑→填同步码（App·高级设置·云同步）" }
+            return "云同步没取到数据 · 请打开App刷新一次"
+        }
         return "请打开极狐车况 App 下拉刷新一次"
     }
 
@@ -335,8 +365,11 @@ struct ControlWidgetView: View {
     }
 
     private var hintText: String {
-        if !entry.groupOk { return "共享存储异常 · 需 TrollStore 环境重装" }
-        if !entry.fetchError.isEmpty { return "自取失败：\(entry.fetchError)" }
+        if !entry.fetchError.isEmpty { return entry.fetchError }
+        if !entry.groupOk {
+            if entry.code.isEmpty { return "长按卡片→编辑→填同步码（App·高级设置·云同步）" }
+            return "云同步没取到数据 · 请打开App刷新一次"
+        }
         return "请打开极狐车况 App 下拉刷新一次"
     }
 
@@ -434,11 +467,11 @@ struct ArcfoxWidgetEntryView: View {
 
 struct ArcfoxWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "ArcfoxCompactWidget", provider: CarProvider()) { entry in
+        IntentConfiguration(kind: "ArcfoxCompactWidget", intent: SyncConfigIntent.self, provider: CarProvider()) { entry in
             ArcfoxWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("极狐车况")
-        .description("中号：车况 + 一键控车；大号：完整车况 + 车控面板（长按可切换尺寸）")
+        .description("中号：车况 + 一键控车；大号：完整面板。无共享权限时：长按→编辑→填同步码（App·高级设置·云同步）")
         .supportedFamilies([.systemMedium, .systemLarge])
     }
 }

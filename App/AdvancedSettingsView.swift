@@ -10,6 +10,9 @@ struct AdvancedSettingsView: View {
     @State private var amapKey = Store.get(Store.kAmapUser)
     @State private var photoItem: PhotosPickerItem?
     @State private var ctrlMsg = ""
+    @State private var cloudOn = CloudSync.enabled
+    @State private var cloudTopic = Store.get(Store.kCloudTopic)
+    @State private var cloudInfo = CloudSync.lastUploadText
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -27,6 +30,47 @@ struct AdvancedSettingsView: View {
             .font(.callout)
             Text("证书组权限：\(Store.certGroupsText)｜实际用的组：\(Store.appGroupId)｜通道：\(Store.channelName)")
                 .font(.caption2).foregroundColor(.secondary)
+
+            // 云同步：无 App Group 权限时小组件走云端拉数据（同步码即私有主题名，载荷加密）
+            sub("小组件云同步（无共享权限时的通道）")
+            Toggle("开启云同步", isOn: $cloudOn)
+                .font(.callout)
+                .onChange(of: cloudOn) { on in
+                    CloudSync.enabled = on
+                    if on && Store.get(Store.kCloudTopic).isEmpty {
+                        cloudTopic = CloudSync.newTopic()
+                    }
+                }
+            if cloudOn {
+                HStack {
+                    Text("同步码：")
+                    Text(cloudTopic.isEmpty ? "（未生成）" : cloudTopic)
+                        .font(.system(.callout, design: .monospaced))
+                        .fontWeight(.semibold)
+                        .lineLimit(1).minimumScaleFactor(0.6)
+                    Spacer()
+                    Button("复制") {
+                        UIPasteboard.general.string = cloudTopic
+                        cloudInfo = "已复制，去小组件：长按→编辑→粘贴同步码"
+                    }.buttonStyle(.bordered)
+                    Button("换一个") {
+                        cloudTopic = CloudSync.newTopic()
+                        cloudInfo = "已更换同步码，小组件里要重新填一遍"
+                    }.buttonStyle(.bordered)
+                }
+                .font(.callout)
+                Button("立即上传") {
+                    if let err = CloudSync.upload() {
+                        cloudInfo = "上传失败：\(err)"
+                    } else {
+                        cloudInfo = "上传成功 · " + CloudSync.lastUploadText
+                    }
+                }
+                .buttonStyle(.bordered)
+                Text(cloudInfo).font(.caption2).foregroundColor(.secondary)
+                Text("开启后每次刷新自动上传；小组件里长按→编辑→填同步码即可拿数据（含控车）。载荷加密，云端存的是密文。")
+                    .font(.caption2).foregroundColor(.secondary)
+            }
 
             // 远程控制
             sub("远程控制")

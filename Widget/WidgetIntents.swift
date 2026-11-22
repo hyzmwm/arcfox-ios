@@ -10,7 +10,15 @@ struct RefreshIntent: AppIntent {
     static let description = IntentDescription("重新拉取极狐车况")
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        let r = Fetcher.fetch()
+        var r = Fetcher.fetch()
+        if r.cache == nil {
+            // 共享通道没数据 → 云同步兼底后重试
+            let code = Store.get(Store.kCloudTopic)
+            if !code.isEmpty {
+                CloudSync.download(code: code)
+                r = Fetcher.fetch()
+            }
+        }
         WidgetCenter.shared.reloadAllTimelines()
         if let c = r.cache {
             Store.set(Store.kCache, c.rawUnsorted)
@@ -18,6 +26,15 @@ struct RefreshIntent: AppIntent {
         }
         return .result(dialog: IntentDialog(stringLiteral: r.error ?? "刷新失败"))
     }
+}
+
+// iOS 17 小组件配置：同步码（App 高级设置·云同步里查看/复制）
+struct SyncConfigIntent: WidgetConfigurationIntent {
+    static let title: LocalizedStringResource = "极狐车况配置"
+    static let description = IntentDescription("无共享权限时填同步码，小组件改走云端拉车况")
+
+    @Parameter(title: "同步码", description: "在极狐车况App·高级设置·云同步里复制", default: "")
+    var syncCode: String
 }
 
 struct LockToggleIntent: AppIntent {
