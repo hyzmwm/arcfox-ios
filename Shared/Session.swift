@@ -14,20 +14,34 @@ enum Store {
 
     static var d: UserDefaults { UserDefaults(suiteName: appGroupId) ?? .standard }
 
-    private static func resolveGroupId() -> String {
-        let fallback = "group.com.arcfoxplus.widget"
+    /// 读 embedded.mobileprovision 的 Entitlements（签名时嵌进包里的证书授权）。
+    private static func provisionEntitlements() -> [String: Any]? {
         guard let path = Bundle.main.path(forResource: "embedded", ofType: "mobileprovision"),
-              let raw = try? Data(contentsOf: URL(fileURLWithPath: path)) else { return fallback }
+              let raw = try? Data(contentsOf: URL(fileURLWithPath: path)) else { return nil }
         // CMS 容器里夹着一段明文 XML plist，直接切出来
         let body = String(data: raw, encoding: .isoLatin1) ?? String(data: raw, encoding: .utf8) ?? ""
-        guard let start = body.range(of: "<?xml"), let end = body.range(of: "</plist>") else { return fallback }
+        guard let start = body.range(of: "<?xml"), let end = body.range(of: "</plist>") else { return nil }
         let xml = String(body[start.lowerBound..<end.upperBound])
         guard let data = xml.data(using: .utf8),
-              let plist = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any],
-              let ent = plist["Entitlements"] as? [String: Any],
+              let plist = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any] else { return nil }
+        return plist["Entitlements"] as? [String: Any]
+    }
+
+    private static func resolveGroupId() -> String {
+        let fallback = "group.com.arcfoxplus.widget"
+        guard let ent = provisionEntitlements(),
               let groups = ent["com.apple.security.application-groups"] as? [String],
               let g = groups.first, !g.isEmpty else { return fallback }
         return g
+    }
+
+    /// 诊断：证书描述文件里实际授权的 App Group 列表（空 = 证书没这权限）。
+    static var certGroupsText: String {
+        guard let ent = provisionEntitlements() else { return "读不到描述文件(未签名？)" }
+        guard let groups = ent["com.apple.security.application-groups"] as? [String], !groups.isEmpty else {
+            return "无(证书没有App Group权限)"
+        }
+        return groups.joined(separator: ", ")
     }
 
     private static let ioLock = NSLock()

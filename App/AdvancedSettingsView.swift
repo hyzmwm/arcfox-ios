@@ -25,6 +25,8 @@ struct AdvancedSettingsView: View {
                     .buttonStyle(.bordered)
             }
             .font(.callout)
+            Text("证书组权限：\(Store.certGroupsText)｜实际用的组：\(Store.appGroupId)｜通道：\(Store.channelName)")
+                .font(.caption2).foregroundColor(.secondary)
 
             // 远程控制
             sub("远程控制")
