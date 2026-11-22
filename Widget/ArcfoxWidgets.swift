@@ -467,7 +467,7 @@ struct ArcfoxWidgetEntryView: View {
 
 struct ArcfoxWidget: Widget {
     var body: some WidgetConfiguration {
-        IntentConfiguration(kind: "ArcfoxCompactWidget", intent: SyncConfigIntent.self, provider: CarProvider()) { entry in
+        AppIntentConfiguration(kind: "ArcfoxCompactWidget", intent: SyncConfigIntent.self, provider: CarProvider()) { entry in
             ArcfoxWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("极狐车况")
