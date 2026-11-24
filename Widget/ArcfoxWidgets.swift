@@ -12,20 +12,24 @@ struct CarEntry: TimelineEntry {
     var code: String = ""
 }
 
-struct CarProvider: TimelineProvider {
+struct CarProvider: AppIntentTimelineProvider {
     func placeholder(in context: Context) -> CarEntry {
         CarEntry(date: .now, cache: sampleCache(), session: Session.shared)
     }
 
-    func getSnapshot(for configuration: SyncConfigIntent, in context: Context, completion: @escaping (CarEntry) -> Void) {
-        completion(resolve(configuration))
+    func snapshot(for configuration: SyncConfigIntent, in context: Context) async -> CarEntry {
+        resolve(configuration)
     }
 
-    func getTimeline(for configuration: SyncConfigIntent, in context: Context, completion: @escaping (Timeline<CarEntry>) -> Void) {
+    func timeline(for configuration: SyncConfigIntent, in context: Context) async -> Timeline<CarEntry> {
         let entry = resolve(configuration)
         let autoMin = max(Store.getInt(Store.kAutoMin, 15), 5)
         let next = Calendar.current.date(byAdding: .minute, value: autoMin, to: entry.date)!
-        completion(Timeline(entries: [entry], policy: .after(next)))
+        return Timeline(entries: [entry], policy: .after(next))
+    }
+
+    func entries(for configuration: SyncConfigIntent, in context: Context) async -> [CarEntry] {
+        [resolve(configuration)]
     }
 
     private func resolve(_ configuration: SyncConfigIntent) -> CarEntry {

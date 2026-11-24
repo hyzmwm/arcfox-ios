@@ -41,18 +41,22 @@ enum CloudSync {
     private static func seal(_ dict: [String: Any], code: String) -> String? {
         guard JSONSerialization.isValidJSONObject(dict),
               let json = try? JSONSerialization.data(withJSONObject: dict) else { return nil }
-        let z = try (json as NSData).compressed(using: .zlib) as Data
-        guard let box = try? AES.GCM.seal(z, using: aesKey(code)),
-              let combined = box.combined else { return nil }
-        return combined.base64EncodedString()
+        do {
+            let z = try (json as NSData).compressed(using: .zlib) as Data
+            guard let box = try? AES.GCM.seal(z, using: aesKey(code)),
+                  let combined = box.combined else { return nil }
+            return combined.base64EncodedString()
+        } catch { return nil }
     }
 
     private static func open(_ b64: String, code: String) -> [String: Any]? {
-        guard let raw = Data(base64Encoded: b64),
-              let box = try? AES.GCM.SealedBox(combined: raw),
-              let z = try? AES.GCM.open(box, using: aesKey(code)) else { return nil }
-        let json = try (z as NSData).decompressed(using: .zlib) as Data
-        return (try? JSONSerialization.jsonObject(with: json)) as? [String: Any]
+        guard let raw = Data(base64Encoded: b64) else { return nil }
+        do {
+            let box = try AES.GCM.SealedBox(combined: raw)
+            let z = try AES.GCM.open(box, using: aesKey(code))
+            let json = try (z as NSData).decompressed(using: .zlib) as Data
+            return (try? JSONSerialization.jsonObject(with: json)) as? [String: Any]
+        } catch { return nil }
     }
 
     private static func http(_ req: URLRequest) -> (Data?, Int) {
